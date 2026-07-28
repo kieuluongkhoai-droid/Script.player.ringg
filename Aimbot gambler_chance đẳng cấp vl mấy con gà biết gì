@@ -8,14 +8,19 @@ local Camera = workspace.CurrentCamera
 -- Feature States
 getgenv().AimbotEnabled = false
 getgenv().TeamCheck = true
-getgenv().AimPart = "Head" -- Or "HumanoidRootPart"
+getgenv().AimPart = "Head" -- Hoặc "HumanoidRootPart"
 
 ----------------------------------------------------------------
 -- 1. CREATE USER INTERFACE (UI MENU)
 ----------------------------------------------------------------
+local CoreGui = game:GetService("CoreGui")
+if CoreGui:FindFirstChild("DeltaCheatMenu") then
+    CoreGui.DeltaCheatMenu:Destroy()
+end
+
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Name = "DeltaCheatMenu"
-ScreenGui.Parent = game:GetService("CoreGui")
+ScreenGui.Parent = CoreGui
 
 local MainFrame = Instance.new("Frame")
 MainFrame.Name = "MainFrame"
@@ -24,7 +29,7 @@ MainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
 MainFrame.Position = UDim2.new(0.5, -125, 0.5, -100)
 MainFrame.Size = UDim2.new(0, 250, 0, 200)
 MainFrame.Active = true
-MainFrame.Draggable = true -- Allows dragging the menu on screen
+MainFrame.Draggable = true
 
 local Title = Instance.new("TextLabel")
 Title.Name = "Title"
@@ -75,31 +80,34 @@ ToggleVisBtn.MouseButton1Click:Connect(function()
     MainFrame.Visible = not MainFrame.Visible
 end)
 
--- Hotkey to toggle menu visibility (Insert Key)
-UserInputService.InputBegan:Connect(function(input, gameProcessed)
+UserInputService.InputBegan:Connect(function(input)
     if input.KeyCode == Enum.KeyCode.Insert then
         MainFrame.Visible = not MainFrame.Visible
     end
 end)
 
 ----------------------------------------------------------------
--- 2. AIMBOT SYSTEM
+-- 2. FIXED AIMBOT SYSTEM
 ----------------------------------------------------------------
 local function GetClosestPlayer()
     local target = nil
     local shortestDistance = math.huge
+    local mouseLocation = UserInputService:GetMouseLocation()
 
     for _, v in pairs(Players:GetPlayers()) do
         if v ~= LocalPlayer and v.Character and v.Character:FindFirstChild("Humanoid") and v.Character.Humanoid.Health > 0 then
-            -- Team check (if supported by the game)
-            if not getgenv().TeamCheck or v.Team ~= LocalPlayer.Team then
+            -- Kiểm tra Team an toàn hơn
+            local isEnemy = true
+            if getgenv().TeamCheck and LocalPlayer.Team and v.Team == LocalPlayer.Team then
+                isEnemy = false
+            end
+
+            if isEnemy then
                 local part = v.Character:FindFirstChild(getgenv().AimPart)
                 if part then
                     local screenPoint, onScreen = Camera:WorldToScreenPoint(part.Position)
                     if onScreen then
-                        local mouse = UserInputService:GetMouseLocation()
-                        local magnitude = (Vector2.new(screenPoint.X, screenPoint.Y) - mouse).Magnitude
-                        
+                        local magnitude = (Vector2.new(screenPoint.X, screenPoint.Y) - mouseLocation).Magnitude
                         if magnitude < shortestDistance then
                             shortestDistance = magnitude
                             target = part
@@ -112,13 +120,12 @@ local function GetClosestPlayer()
     return target
 end
 
--- Continuous Aimbot loop
 RunService.RenderStepped:Connect(function()
     if getgenv().AimbotEnabled then
         local targetPart = GetClosestPlayer()
         if targetPart then
-            -- Automatically lock camera view onto the target part
-            Camera.CFrame = CFrame.new(Camera.CFrame.Position, targetPart.Position)
+            -- Khóa tâm camera thẳng vào mục tiêu
+            Camera.CFrame = CFrame.lookAt(Camera.CFrame.Position, targetPart.Position)
         end
     end
 end)
