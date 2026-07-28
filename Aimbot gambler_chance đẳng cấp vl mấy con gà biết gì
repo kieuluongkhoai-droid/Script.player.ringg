@@ -7,7 +7,6 @@ end
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
-local CoreGui = game:GetService("CoreGui")
 
 local LocalPlayer = Players.LocalPlayer
 local Camera = workspace.CurrentCamera
@@ -16,26 +15,29 @@ local Camera = workspace.CurrentCamera
 local AimbotEnabled = false
 local ESPEnabled = false
 local AimKey = Enum.UserInputType.MouseButton2 -- Giữ Chuột Phải để Aim
-local TargetPart = "HumanoidRootPart" -- Magic Element Battle dùng RootPart ổn định hơn Head
+local TargetPart = "HumanoidRootPart"
 
 ----------------------------------------------------------------
--- TẠO GIAO DIỆN MENU (GUI)
+-- 1. TẠO GIAO DIỆN MENU (GUI) AN TOÀN
 ----------------------------------------------------------------
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "MEB_MenuGui"
-pcall(function()
-    ScreenGui.Parent = CoreGui
-end)
-if not ScreenGui.Parent then
+ScreenGui.Name = "FixedMEBMenu"
+ScreenGui.ResetOnSpawn = false
+
+-- Đưa thẳng vào PlayerGui để tránh lỗi chặn CoreGui
+local success, err = pcall(function()
     ScreenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+end)
+if not success then
+    ScreenGui.Parent = game:GetService("CoreGui")
 end
 
 -- Khung chính của Menu
 local MainFrame = Instance.new("Frame")
 MainFrame.Name = "MainFrame"
-MainFrame.Size = UDim2.new(0, 230, 0, 230)
+MainFrame.Size = UDim2.new(0, 220, 0, 210)
 MainFrame.Position = UDim2.new(0.05, 0, 0.2, 0)
-MainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+MainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
 MainFrame.BorderSizePixel = 0
 MainFrame.Active = true
 MainFrame.Draggable = true
@@ -48,8 +50,8 @@ UICorner.Parent = MainFrame
 -- Tiêu đề Menu
 local Title = Instance.new("TextLabel")
 Title.Size = UDim2.new(1, 0, 0, 35)
-Title.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
-Title.Text = "  MEB - AIMBOT & ESP"
+Title.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+Title.Text = "  MEB MENU - FIXED"
 Title.TextColor3 = Color3.fromRGB(255, 255, 255)
 Title.TextSize = 14
 Title.Font = Enum.Font.SourceSansBold
@@ -62,7 +64,7 @@ TitleCorner.Parent = Title
 
 -- Nút bật/tắt Aimbot
 local AimbotButton = Instance.new("TextButton")
-AimbotButton.Size = UDim2.new(0, 200, 0, 35)
+AimbotButton.Size = UDim2.new(0, 190, 0, 35)
 AimbotButton.Position = UDim2.new(0, 15, 0, 45)
 AimbotButton.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
 AimbotButton.Text = "Aimbot: OFF"
@@ -76,7 +78,7 @@ BtnCorner1.Parent = AimbotButton
 
 -- Nút bật/tắt ESP
 local ESPButton = Instance.new("TextButton")
-ESPButton.Size = UDim2.new(0, 200, 0, 35)
+ESPButton.Size = UDim2.new(0, 190, 0, 35)
 ESPButton.Position = UDim2.new(0, 15, 0, 90)
 ESPButton.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
 ESPButton.Text = "ESP Box: OFF"
@@ -93,7 +95,7 @@ local InfoLabel = Instance.new("TextLabel")
 InfoLabel.Size = UDim2.new(1, 0, 0, 30)
 InfoLabel.Position = UDim2.new(0, 0, 0, 135)
 InfoLabel.BackgroundTransparency = 1
-InfoLabel.Text = "Giữ CHUỘT PHẢI để khóa mục tiêu"
+InfoLabel.Text = "Giữ CHUỘT PHẢI để Aimbot"
 InfoLabel.TextColor3 = Color3.fromRGB(180, 180, 180)
 InfoLabel.TextSize = 11
 InfoLabel.Font = Enum.Font.Italic
@@ -101,7 +103,7 @@ InfoLabel.Parent = MainFrame
 
 local HintLabel = Instance.new("TextLabel")
 HintLabel.Size = UDim2.new(1, 0, 0, 25)
-HintLabel.Position = UDim2.new(0, 0, 0, 190)
+HintLabel.Position = UDim2.new(0, 0, 0, 175)
 HintLabel.BackgroundTransparency = 1
 HintLabel.Text = "Bấm [INSERT] để ẩn/hiện Menu"
 HintLabel.TextColor3 = Color3.fromRGB(120, 120, 120)
@@ -110,49 +112,40 @@ HintLabel.Font = Enum.Font.SourceSans
 HintLabel.Parent = MainFrame
 
 ----------------------------------------------------------------
--- HỆ THỐNG ESP (SỬ DỤNG DRAWING API)
+-- 2. HỆ THỐNG ESP (SỬ DỤNG HIGHLIGHT AN TOÀN)
 ----------------------------------------------------------------
 local ESPStorage = {}
 
-local function CreateESP(player)
-    if ESPStorage[player] then return end
+local function UpdateESP(player)
+    if player == LocalPlayer then return end
     
-    local espData = {}
-    
-    espData.Box = Drawing.new("Square")
-    espData.Box.Visible = false
-    espData.Box.Color = Color3.fromRGB(0, 255, 100)
-    espData.Box.Thickness = 1.5
-    espData.Box.Filled = false
-    
-    espData.NameTag = Drawing.new("Text")
-    espData.NameTag.Visible = false
-    espData.NameTag.Color = Color3.fromRGB(255, 255, 255)
-    espData.NameTag.Size = 13
-    espData.NameTag.Center = true
-    espData.NameTag.Outline = true
-    
-    ESPStorage[player] = espData
-end
-
-local function RemoveESP(player)
-    if ESPStorage[player] then
-        if ESPStorage[player].Box then ESPStorage[player].Box:Remove() end
-        if ESPStorage[player].NameTag then ESPStorage[player].NameTag:Remove() end
-        ESPStorage[player] = nil
+    local character = player.Character
+    if character and ESPEnabled then
+        -- Kiểm tra xem đã có Highlight chưa, chưa có thì tạo mới
+        local highlight = character:FindFirstChild("MEB_Highlight")
+        if not highlight then
+            highlight = Instance.new("Highlight")
+            highlight.Name = "MEB_Highlight"
+            highlight.Adornee = character
+            highlight.FillColor = Color3.fromRGB(0, 255, 100)
+            highlight.OutlineColor = Color3.fromRGB(255, 255, 255)
+            highlight.FillTransparency = 0.5
+            highlight.OutlineTransparency = 0
+            highlight.Parent = character
+        end
+        highlight.Enabled = true
+    else
+        if character then
+            local highlight = character:FindFirstChild("MEB_Highlight")
+            if highlight then
+                highlight.Enabled = false
+            end
+        end
     end
 end
-
-for _, player in ipairs(Players:GetPlayers()) do
-    if player ~= LocalPlayer then
-        CreateESP(player)
-    end
-end
-Players.PlayerAdded:Connect(CreateESP)
-Players.PlayerRemoving:Connect(RemoveESP)
 
 ----------------------------------------------------------------
--- SỰ KIỆN NÚT BẤM TRÊN MENU
+-- 3. XỬ LÝ SỰ KIỆN NÚT BẤM
 ----------------------------------------------------------------
 AimbotButton.MouseButton1Click:Connect(function()
     AimbotEnabled = not AimbotEnabled
@@ -173,9 +166,11 @@ ESPButton.MouseButton1Click:Connect(function()
     else
         ESPButton.Text = "ESP Box: OFF"
         ESPButton.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
-        for _, espData in pairs(ESPStorage) do
-            espData.Box.Visible = false
-            espData.NameTag.Visible = false
+        -- Tắt toàn bộ ESP ngay lập tức khi ấn OFF
+        for _, player in ipairs(Players:GetPlayers()) do
+            if player.Character and player.Character:FindFirstChild("MEB_Highlight") then
+                player.Character.MEB_Highlight.Enabled = false
+            end
         end
     end
 end)
@@ -187,7 +182,7 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
 end)
 
 ----------------------------------------------------------------
--- HÀM TÌM MỤC TIÊU (TỐI ƯU CHO GAME PHÉP THUẬT)
+-- 4. HÀM TÌM MỤC TIÊU CHO AIMBOT
 ----------------------------------------------------------------
 local function GetClosestPlayer()
     local closestPlayer = nil
@@ -196,25 +191,17 @@ local function GetClosestPlayer()
     for _, player in ipairs(Players:GetPlayers()) do
         if player ~= LocalPlayer and player.Character then
             local character = player.Character
-            local rootPart = character:FindFirstChild(TargetPart) or character:FindFirstChild("HumanoidRootPart")
+            local rootPart = character:FindFirstChild(TargetPart)
             local humanoid = character:FindFirstChildOfClass("Humanoid")
             
             if rootPart and humanoid and humanoid.Health > 0 then
-                -- Kiểm tra thêm nếu nhân vật có team khác (tránh tự bắn đồng đội nếu game có chia đội)
-                local isEnemy = true
-                if LocalPlayer.Team and player.Team and LocalPlayer.Team == player.Team then
-                    isEnemy = false
-                end
-                
-                if isEnemy then
-                    local screenPoint, onScreen = Camera:WorldToViewportPoint(rootPart.Position)
-                    local mouseLocation = UserInputService:GetMouseLocation()
-                    local distance = (Vector2.new(screenPoint.X, screenPoint.Y) - mouseLocation).Magnitude
+                local screenPoint, onScreen = Camera:WorldToViewportPoint(rootPart.Position)
+                local mouseLocation = UserInputService:GetMouseLocation()
+                local distance = (Vector2.new(screenPoint.X, screenPoint.Y) - mouseLocation).Magnitude
 
-                    if distance < shortestDistance then
-                        shortestDistance = distance
-                        closestPlayer = player
-                    end
+                if distance < shortestDistance then
+                    shortestDistance = distance
+                    closestPlayer = player
                 end
             end
         end
@@ -224,49 +211,26 @@ local function GetClosestPlayer()
 end
 
 ----------------------------------------------------------------
--- VÒNG LẶP XỬ LÝ LIÊN TỤC
+-- 5. VÒNG LẶP CHẠY LIÊN TỤC (RENDERSTEPPED)
 ----------------------------------------------------------------
 RunService.RenderStepped:Connect(function()
-    -- 1. Aimbot Logic
+    -- Xử lý Aimbot khi bật và đang giữ chuột phải
     if AimbotEnabled and UserInputService:IsMouseButtonPressed(AimKey) then
-        local closestTarget = GetClosestPlayer()
-        if closestTarget and closestTarget.Character then
-            local targetPartObj = closestTarget.Character:FindFirstChild(TargetPart) or closestTarget.Character:FindFirstChild("HumanoidRootPart")
-            if targetPartObj then
-                Camera.CFrame = CFrame.new(Camera.CFrame.Position, targetPartObj.Position)
+        local target = GetClosestPlayer()
+        if target and target.Character then
+            local rootPart = target.Character:FindFirstChild(TargetPart)
+            if rootPart then
+                Camera.CFrame = CFrame.new(Camera.CFrame.Position, rootPart.Position)
             end
         end
     end
 
-    -- 2. ESP Logic
-    for player, espData in pairs(ESPStorage) do
-        local character = player.Character
-        local humanoid = character and character:FindFirstChildOfClass("Humanoid")
-        local rootPart = character and (character:FindFirstChild("HumanoidRootPart") or character:FindFirstChild("Torso"))
-
-        if ESPEnabled and character and humanoid and rootPart and humanoid.Health > 0 then
-            local rootPos, rootOnScreen = Camera:WorldToViewportPoint(rootPart.Position)
-            local topPos = Camera:WorldToViewportPoint(rootPart.Position + Vector3.new(0, 3, 0))
-            local legPos = Camera:WorldToViewportPoint(rootPart.Position - Vector3.new(0, 3, 0))
-
-            if rootOnScreen then
-                local height = math.abs(topPos.Y - legPos.Y)
-                local width = height / 2
-
-                espData.Box.Size = Vector2.new(width, height)
-                espData.Box.Position = Vector2.new(rootPos.X - width / 2, rootPos.Y - height / 2)
-                espData.Box.Visible = true
-
-                espData.NameTag.Text = player.Name .. " [" .. math.floor(humanoid.Health) .. "HP]"
-                espData.NameTag.Position = Vector2.new(rootPos.X, (rootPos.Y - height / 2) - 18)
-                espData.NameTag.Visible = true
-            else
-                espData.Box.Visible = false
-                espData.NameTag.Visible = false
-            end
-        else
-            espData.Box.Visible = false
-            espData.NameTag.Visible = false
+    -- Xử lý ESP liên tục cho các người chơi
+    if ESPEnabled then
+        for _, player in ipairs(Players:GetPlayers()) do
+            UpdateESP(player)
         end
     end
 end)
+
+print("Script Loaded Successfully!")
