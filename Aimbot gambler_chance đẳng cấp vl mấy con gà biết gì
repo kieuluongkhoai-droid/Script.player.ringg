@@ -13,8 +13,8 @@ local Camera = workspace.CurrentCamera
 -- Feature States
 getgenv().AimbotEnabled = false
 getgenv().TeamCheck = true
-getgenv().AimPart = "Head" -- Or "HumanoidRootPart"
-getgenv().Smoothness = 0.2 -- Camera smoothing factor (lower is smoother, 1 snaps instantly)
+getgenv().AimPart = "HumanoidRootPart" -- Đổi thành HumanoidRootPart để dễ bắt dính hơn Head
+getgenv().Smoothness = 0.25 -- Độ mượt của camera
 
 ----------------------------------------------------------------
 -- 1. CREATE USER INTERFACE (UI MENU)
@@ -28,7 +28,7 @@ MainFrame.Name = "MainFrame"
 MainFrame.Parent = ScreenGui
 MainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
 MainFrame.Position = UDim2.new(0.5, -125, 0.5, -100)
-MainFrame.Size = UDim2.new(0, 250, 0, 200)
+MainFrame.Size = UDim2.new(0, 250, 0, 210)
 MainFrame.Active = true
 MainFrame.Draggable = true
 
@@ -47,8 +47,8 @@ local AimbotButton = Instance.new("TextButton")
 AimbotButton.Name = "AimbotButton"
 AimbotButton.Parent = MainFrame
 AimbotButton.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
-AimbotButton.Position = UDim2.new(0.1, 0, 0.3, 0)
-AimbotButton.Size = UDim2.new(0.8, 0, 0, 40)
+AimbotButton.Position = UDim2.new(0.1, 0, 0.25, 0)
+AimbotButton.Size = UDim2.new(0.8, 0, 0, 35)
 AimbotButton.Font = Enum.Font.SourceSansBold
 AimbotButton.Text = "Aimbot: OFF"
 AimbotButton.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -65,13 +65,35 @@ AimbotButton.MouseButton1Click:Connect(function()
     end
 end)
 
+-- Switch AimPart Button (Head <-> HumanoidRootPart)
+local SwitchPartBtn = Instance.new("TextButton")
+SwitchPartBtn.Name = "SwitchPartBtn"
+SwitchPartBtn.Parent = MainFrame
+SwitchPartBtn.BackgroundColor3 = Color3.fromRGB(70, 70, 70)
+SwitchPartBtn.Position = UDim2.new(0.1, 0, 0.47, 0)
+SwitchPartBtn.Size = UDim2.new(0.8, 0, 0, 35)
+SwitchPartBtn.Font = Enum.Font.SourceSansBold
+SwitchPartBtn.Text = "Aim Part: RootPart"
+SwitchPartBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+SwitchPartBtn.TextSize = 14
+
+SwitchPartBtn.MouseButton1Click:Connect(function()
+    if getgenv().AimPart == "HumanoidRootPart" then
+        getgenv().AimPart = "Head"
+        SwitchPartBtn.Text = "Aim Part: Head"
+    else
+        getgenv().AimPart = "HumanoidRootPart"
+        SwitchPartBtn.Text = "Aim Part: RootPart"
+    end
+end)
+
 -- Hide/Show Menu Button
 local ToggleVisBtn = Instance.new("TextButton")
 ToggleVisBtn.Name = "ToggleVisBtn"
 ToggleVisBtn.Parent = MainFrame
 ToggleVisBtn.BackgroundColor3 = Color3.fromRGB(70, 70, 70)
-ToggleVisBtn.Position = UDim2.new(0.1, 0, 0.65, 0)
-ToggleVisBtn.Size = UDim2.new(0.8, 0, 0, 40)
+ToggleVisBtn.Position = UDim2.new(0.1, 0, 0.7, 0)
+ToggleVisBtn.Size = UDim2.new(0.8, 0, 0, 35)
 ToggleVisBtn.Font = Enum.Font.SourceSansBold
 ToggleVisBtn.Text = "Hide Menu (Insert Key)"
 ToggleVisBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -88,27 +110,26 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
 end)
 
 ----------------------------------------------------------------
--- 2. SMOOTH AIMBOT SYSTEM
+-- 2. ROBUST AIMBOT SYSTEM
 ----------------------------------------------------------------
 local function GetClosestPlayer()
     local target = nil
     local shortestDistance = math.huge
-    local mouseLocation = UserInputService:GetMouseLocation()
+    local viewportCenter = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
 
     for _, v in pairs(Players:GetPlayers()) do
         if v ~= LocalPlayer and v.Character then
             local humanoid = v.Character:FindFirstChildOfClass("Humanoid")
-            -- Check if character is alive
             if humanoid and humanoid.Health > 0 then
-                -- Check team validity
+                -- Kiểm tra Team hợp lệ
                 if not getgenv().TeamCheck or v.Team ~= LocalPlayer.Team then
-                    local part = v.Character:FindFirstChild(getgenv().AimPart)
+                    local part = v.Character:FindFirstChild(getgenv().AimPart) or v.Character:FindFirstChild("HumanoidRootPart")
                     if part then
                         local screenPoint, onScreen = Camera:WorldToScreenPoint(part.Position)
-                        -- Only targets currently visible on screen
                         if onScreen then
                             local screenPos = Vector2.new(screenPoint.X, screenPoint.Y)
-                            local distance = (screenPos - mouseLocation).Magnitude
+                            -- Tính khoảng cách so với tâm màn hình (thay vì vị trí chuột giả lập để bắt chuẩn hơn)
+                            local distance = (screenPos - viewportCenter).Magnitude
 
                             if distance < shortestDistance then
                                 shortestDistance = distance
@@ -123,15 +144,13 @@ local function GetClosestPlayer()
     return target
 end
 
--- Continuous smooth camera update loop per frame
+-- Vòng lặp xử lý camera
 RunService.RenderStepped:Connect(function()
     if getgenv().AimbotEnabled then
         local targetPart = GetClosestPlayer()
         if targetPart then
             local currentCFrame = Camera.CFrame
             local targetCFrame = CFrame.new(currentCFrame.Position, targetPart.Position)
-            
-            -- Use Lerp to create smoothness and prevent camera snapping/stuttering
             Camera.CFrame = currentCFrame:Lerp(targetCFrame, getgenv().Smoothness)
         end
     end
