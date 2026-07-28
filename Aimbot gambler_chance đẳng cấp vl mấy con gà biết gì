@@ -1,0 +1,124 @@
+-- Check if environment is supported
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local LocalPlayer = Players.LocalPlayer
+local Camera = workspace.CurrentCamera
+
+-- Feature States
+getgenv().AimbotEnabled = false
+getgenv().TeamCheck = true
+getgenv().AimPart = "Head" -- Or "HumanoidRootPart"
+
+----------------------------------------------------------------
+-- 1. CREATE USER INTERFACE (UI MENU)
+----------------------------------------------------------------
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "DeltaCheatMenu"
+ScreenGui.Parent = game:GetService("CoreGui")
+
+local MainFrame = Instance.new("Frame")
+MainFrame.Name = "MainFrame"
+MainFrame.Parent = ScreenGui
+MainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+MainFrame.Position = UDim2.new(0.5, -125, 0.5, -100)
+MainFrame.Size = UDim2.new(0, 250, 0, 200)
+MainFrame.Active = true
+MainFrame.Draggable = true -- Allows dragging the menu on screen
+
+local Title = Instance.new("TextLabel")
+Title.Name = "Title"
+Title.Parent = MainFrame
+Title.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+Title.Size = UDim2.new(1, 0, 0, 35)
+Title.Font = Enum.Font.SourceSansBold
+Title.Text = "DELTA AIMBOT MENU"
+Title.TextColor3 = Color3.fromRGB(255, 255, 255)
+Title.TextSize = 16
+
+-- Aimbot Toggle Button
+local AimbotButton = Instance.new("TextButton")
+AimbotButton.Name = "AimbotButton"
+AimbotButton.Parent = MainFrame
+AimbotButton.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+AimbotButton.Position = UDim2.new(0.1, 0, 0.3, 0)
+AimbotButton.Size = UDim2.new(0.8, 0, 0, 40)
+AimbotButton.Font = Enum.Font.SourceSansBold
+AimbotButton.Text = "Aimbot: OFF"
+AimbotButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+AimbotButton.TextSize = 14
+
+AimbotButton.MouseButton1Click:Connect(function()
+    getgenv().AimbotEnabled = not getgenv().AimbotEnabled
+    if getgenv().AimbotEnabled then
+        AimbotButton.Text = "Aimbot: ON"
+        AimbotButton.BackgroundColor3 = Color3.fromRGB(50, 200, 50)
+    else
+        AimbotButton.Text = "Aimbot: OFF"
+        AimbotButton.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+    end
+end)
+
+-- Hide/Show Menu Button
+local ToggleVisBtn = Instance.new("TextButton")
+ToggleVisBtn.Name = "ToggleVisBtn"
+ToggleVisBtn.Parent = MainFrame
+ToggleVisBtn.BackgroundColor3 = Color3.fromRGB(70, 70, 70)
+ToggleVisBtn.Position = UDim2.new(0.1, 0, 0.65, 0)
+ToggleVisBtn.Size = UDim2.new(0.8, 0, 0, 40)
+ToggleVisBtn.Font = Enum.Font.SourceSansBold
+ToggleVisBtn.Text = "Hide Menu (Insert Key)"
+ToggleVisBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+ToggleVisBtn.TextSize = 14
+
+ToggleVisBtn.MouseButton1Click:Connect(function()
+    MainFrame.Visible = not MainFrame.Visible
+end)
+
+-- Hotkey to toggle menu visibility (Insert Key)
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    if input.KeyCode == Enum.KeyCode.Insert then
+        MainFrame.Visible = not MainFrame.Visible
+    end
+end)
+
+----------------------------------------------------------------
+-- 2. AIMBOT SYSTEM
+----------------------------------------------------------------
+local function GetClosestPlayer()
+    local target = nil
+    local shortestDistance = math.huge
+
+    for _, v in pairs(Players:GetPlayers()) do
+        if v ~= LocalPlayer and v.Character and v.Character:FindFirstChild("Humanoid") and v.Character.Humanoid.Health > 0 then
+            -- Team check (if supported by the game)
+            if not getgenv().TeamCheck or v.Team ~= LocalPlayer.Team then
+                local part = v.Character:FindFirstChild(getgenv().AimPart)
+                if part then
+                    local screenPoint, onScreen = Camera:WorldToScreenPoint(part.Position)
+                    if onScreen then
+                        local mouse = UserInputService:GetMouseLocation()
+                        local magnitude = (Vector2.new(screenPoint.X, screenPoint.Y) - mouse).Magnitude
+                        
+                        if magnitude < shortestDistance then
+                            shortestDistance = magnitude
+                            target = part
+                        end
+                    end
+                end
+            end
+        end
+    end
+    return target
+end
+
+-- Continuous Aimbot loop
+RunService.RenderStepped:Connect(function()
+    if getgenv().AimbotEnabled then
+        local targetPart = GetClosestPlayer()
+        if targetPart then
+            -- Automatically lock camera view onto the target part
+            Camera.CFrame = CFrame.new(Camera.CFrame.Position, targetPart.Position)
+        end
+    end
+end)
