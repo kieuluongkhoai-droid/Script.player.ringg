@@ -1,236 +1,71 @@
--- Kiểm tra game đã load xong chưa
-if not game:IsLoaded() then
-    game.Loaded:Wait()
-end
+-- Admin ESP Test (Roblox Studio)
 
--- Các dịch vụ cần thiết
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
-local UserInputService = game:GetService("UserInputService")
 
-local LocalPlayer = Players.LocalPlayer
-local Camera = workspace.CurrentCamera
+local player = Players.LocalPlayer
 
--- Trạng thái tính năng
-local AimbotEnabled = false
-local ESPEnabled = false
-local AimKey = Enum.UserInputType.MouseButton2 -- Giữ Chuột Phải để Aim
-local TargetPart = "HumanoidRootPart"
+local ESP_ENABLED = false
 
-----------------------------------------------------------------
--- 1. TẠO GIAO DIỆN MENU (GUI) AN TOÀN
-----------------------------------------------------------------
-local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "FixedMEBMenu"
-ScreenGui.ResetOnSpawn = false
+-- Tạo ESP
+local function createESP(plr)
+	if plr == player then return end
 
--- Đưa thẳng vào PlayerGui để tránh lỗi chặn CoreGui
-local success, err = pcall(function()
-    ScreenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
-end)
-if not success then
-    ScreenGui.Parent = game:GetService("CoreGui")
+	local function setup(char)
+		local highlight = Instance.new("Highlight")
+		highlight.Name = "AdminESP"
+		highlight.FillTransparency = 0.5
+		highlight.OutlineTransparency = 0
+		highlight.Enabled = ESP_ENABLED
+		highlight.Parent = char
+
+		local tag = Instance.new("BillboardGui")
+		tag.Name = "NameESP"
+		tag.Size = UDim2.new(0,200,0,50)
+		tag.StudsOffset = Vector3.new(0,3,0)
+		tag.AlwaysOnTop = true
+		tag.Enabled = ESP_ENABLED
+		tag.Parent = char:WaitForChild("Head")
+
+		local text = Instance.new("TextLabel")
+		text.Size = UDim2.new(1,0,1,0)
+		text.BackgroundTransparency = 1
+		text.Text = plr.Name
+		text.TextScaled = true
+		text.Parent = tag
+	end
+
+	if plr.Character then
+		setup(plr.Character)
+	end
+
+	plr.CharacterAdded:Connect(setup)
 end
 
--- Khung chính của Menu
-local MainFrame = Instance.new("Frame")
-MainFrame.Name = "MainFrame"
-MainFrame.Size = UDim2.new(0, 220, 0, 210)
-MainFrame.Position = UDim2.new(0.05, 0, 0.2, 0)
-MainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-MainFrame.BorderSizePixel = 0
-MainFrame.Active = true
-MainFrame.Draggable = true
-MainFrame.Parent = ScreenGui
-
-local UICorner = Instance.new("UICorner")
-UICorner.CornerRadius = UDim.new(0, 8)
-UICorner.Parent = MainFrame
-
--- Tiêu đề Menu
-local Title = Instance.new("TextLabel")
-Title.Size = UDim2.new(1, 0, 0, 35)
-Title.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
-Title.Text = "  MEB MENU - FIXED"
-Title.TextColor3 = Color3.fromRGB(255, 255, 255)
-Title.TextSize = 14
-Title.Font = Enum.Font.SourceSansBold
-Title.TextXAlignment = Enum.TextXAlignment.Left
-Title.Parent = MainFrame
-
-local TitleCorner = Instance.new("UICorner")
-TitleCorner.CornerRadius = UDim.new(0, 8)
-TitleCorner.Parent = Title
-
--- Nút bật/tắt Aimbot
-local AimbotButton = Instance.new("TextButton")
-AimbotButton.Size = UDim2.new(0, 190, 0, 35)
-AimbotButton.Position = UDim2.new(0, 15, 0, 45)
-AimbotButton.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
-AimbotButton.Text = "Aimbot: OFF"
-AimbotButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-AimbotButton.TextSize, AimbotButton.Font = 14, Enum.Font.SourceSansBold
-AimbotButton.Parent = MainFrame
-
-local BtnCorner1 = Instance.new("UICorner")
-BtnCorner1.CornerRadius = UDim.new(0, 6)
-BtnCorner1.Parent = AimbotButton
-
--- Nút bật/tắt ESP
-local ESPButton = Instance.new("TextButton")
-ESPButton.Size = UDim2.new(0, 190, 0, 35)
-ESPButton.Position = UDim2.new(0, 15, 0, 90)
-ESPButton.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
-ESPButton.Text = "ESP Box: OFF"
-ESPButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-ESPButton.TextSize, ESPButton.Font = 14, Enum.Font.SourceSansBold
-ESPButton.Parent = MainFrame
-
-local BtnCorner2 = Instance.new("UICorner")
-BtnCorner2.CornerRadius = UDim.new(0, 6)
-BtnCorner2.Parent = ESPButton
-
--- Nhãn hướng dẫn
-local InfoLabel = Instance.new("TextLabel")
-InfoLabel.Size = UDim2.new(1, 0, 0, 30)
-InfoLabel.Position = UDim2.new(0, 0, 0, 135)
-InfoLabel.BackgroundTransparency = 1
-InfoLabel.Text = "Giữ CHUỘT PHẢI để Aimbot"
-InfoLabel.TextColor3 = Color3.fromRGB(180, 180, 180)
-InfoLabel.TextSize = 11
-InfoLabel.Font = Enum.Font.Italic
-InfoLabel.Parent = MainFrame
-
-local HintLabel = Instance.new("TextLabel")
-HintLabel.Size = UDim2.new(1, 0, 0, 25)
-HintLabel.Position = UDim2.new(0, 0, 0, 175)
-HintLabel.BackgroundTransparency = 1
-HintLabel.Text = "Bấm [INSERT] để ẩn/hiện Menu"
-HintLabel.TextColor3 = Color3.fromRGB(120, 120, 120)
-HintLabel.TextSize = 11
-HintLabel.Font = Enum.Font.SourceSans
-HintLabel.Parent = MainFrame
-
-----------------------------------------------------------------
--- 2. HỆ THỐNG ESP (SỬ DỤNG HIGHLIGHT AN TOÀN)
-----------------------------------------------------------------
-local ESPStorage = {}
-
-local function UpdateESP(player)
-    if player == LocalPlayer then return end
-    
-    local character = player.Character
-    if character and ESPEnabled then
-        -- Kiểm tra xem đã có Highlight chưa, chưa có thì tạo mới
-        local highlight = character:FindFirstChild("MEB_Highlight")
-        if not highlight then
-            highlight = Instance.new("Highlight")
-            highlight.Name = "MEB_Highlight"
-            highlight.Adornee = character
-            highlight.FillColor = Color3.fromRGB(0, 255, 100)
-            highlight.OutlineColor = Color3.fromRGB(255, 255, 255)
-            highlight.FillTransparency = 0.5
-            highlight.OutlineTransparency = 0
-            highlight.Parent = character
-        end
-        highlight.Enabled = true
-    else
-        if character then
-            local highlight = character:FindFirstChild("MEB_Highlight")
-            if highlight then
-                highlight.Enabled = false
-            end
-        end
-    end
+for _,p in pairs(Players:GetPlayers()) do
+	createESP(p)
 end
 
-----------------------------------------------------------------
--- 3. XỬ LÝ SỰ KIỆN NÚT BẤM
-----------------------------------------------------------------
-AimbotButton.MouseButton1Click:Connect(function()
-    AimbotEnabled = not AimbotEnabled
-    if AimbotEnabled then
-        AimbotButton.Text = "Aimbot: ON"
-        AimbotButton.BackgroundColor3 = Color3.fromRGB(50, 200, 50)
-    else
-        AimbotButton.Text = "Aimbot: OFF"
-        AimbotButton.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
-    end
-end)
+Players.PlayerAdded:Connect(createESP)
 
-ESPButton.MouseButton1Click:Connect(function()
-    ESPEnabled = not ESPEnabled
-    if ESPEnabled then
-        ESPButton.Text = "ESP Box: ON"
-        ESPButton.BackgroundColor3 = Color3.fromRGB(50, 200, 50)
-    else
-        ESPButton.Text = "ESP Box: OFF"
-        ESPButton.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
-        -- Tắt toàn bộ ESP ngay lập tức khi ấn OFF
-        for _, player in ipairs(Players:GetPlayers()) do
-            if player.Character and player.Character:FindFirstChild("MEB_Highlight") then
-                player.Character.MEB_Highlight.Enabled = false
-            end
-        end
-    end
-end)
+-- Bật/tắt ESP
+local function toggleESP()
+	ESP_ENABLED = not ESP_ENABLED
 
-UserInputService.InputBegan:Connect(function(input, gameProcessed)
-    if input.KeyCode == Enum.KeyCode.Insert then
-        MainFrame.Visible = not MainFrame.Visible
-    end
-end)
+	for _,p in pairs(Players:GetPlayers()) do
+		if p.Character then
+			local esp = p.Character:FindFirstChild("AdminESP")
+			if esp then
+				esp.Enabled = ESP_ENABLED
+			end
 
-----------------------------------------------------------------
--- 4. HÀM TÌM MỤC TIÊU CHO AIMBOT
-----------------------------------------------------------------
-local function GetClosestPlayer()
-    local closestPlayer = nil
-    local shortestDistance = math.huge
-
-    for _, player in ipairs(Players:GetPlayers()) do
-        if player ~= LocalPlayer and player.Character then
-            local character = player.Character
-            local rootPart = character:FindFirstChild(TargetPart)
-            local humanoid = character:FindFirstChildOfClass("Humanoid")
-            
-            if rootPart and humanoid and humanoid.Health > 0 then
-                local screenPoint, onScreen = Camera:WorldToViewportPoint(rootPart.Position)
-                local mouseLocation = UserInputService:GetMouseLocation()
-                local distance = (Vector2.new(screenPoint.X, screenPoint.Y) - mouseLocation).Magnitude
-
-                if distance < shortestDistance then
-                    shortestDistance = distance
-                    closestPlayer = player
-                end
-            end
-        end
-    end
-
-    return closestPlayer
+			local head = p.Character:FindFirstChild("Head")
+			if head then
+				local tag = head:FindFirstChild("NameESP")
+				if tag then
+					tag.Enabled = ESP_ENABLED
+				end
+			end
+		end
+	end
 end
-
-----------------------------------------------------------------
--- 5. VÒNG LẶP CHẠY LIÊN TỤC (RENDERSTEPPED)
-----------------------------------------------------------------
-RunService.RenderStepped:Connect(function()
-    -- Xử lý Aimbot khi bật và đang giữ chuột phải
-    if AimbotEnabled and UserInputService:IsMouseButtonPressed(AimKey) then
-        local target = GetClosestPlayer()
-        if target and target.Character then
-            local rootPart = target.Character:FindFirstChild(TargetPart)
-            if rootPart then
-                Camera.CFrame = CFrame.new(Camera.CFrame.Position, rootPart.Position)
-            end
-        end
-    end
-
-    -- Xử lý ESP liên tục cho các người chơi
-    if ESPEnabled then
-        for _, player in ipairs(Players:GetPlayers()) do
-            UpdateESP(player)
-        end
-    end
-end)
-
-print("Script Loaded Successfully!")
