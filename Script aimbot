@@ -1,0 +1,248 @@
+--[[
+    Script Name: Element Magic Battle - Pro Client
+    Features: ESP (Boxes & Names), Smooth Aimbot, Custom UI (Delta Compatible)
+]]--
+
+-- Kiểm tra môi trường game
+if not game:IsLoaded() then game.Loaded:Wait() end
+
+-- Các dịch vụ cần thiết
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local CoreGui = game:GetService("CoreGui")
+local Camera = workspace.CurrentCamera
+
+local LocalPlayer = Players.LocalPlayer
+local Mouse = LocalPlayer:GetMouse()
+
+-- Biến cấu hình (Settings)
+getgenv().EMBSettings = {
+    ESPEnabled = false,
+    BoxColor = Color3.fromRGB(0, 255, 128),
+    NameColor = Color3.fromRGB(255, 255, 255),
+    
+    AimbotEnabled = false,
+    AimKey = Enum.UserInputType.MouseButton2, -- Chuột phải để bật Aimbot
+    Smoothness = 5, -- Độ mượt của camera (càng cao càng mượt)
+    AimbotPart = "HumanoidRootPart"
+}
+
+--------------------------------------------------------------------------------
+-- 1. XÂY DỰNG GIAO DIỆN UI (DELTA COMPATIBLE)
+--------------------------------------------------------------------------------
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "EMB_CustomUI"
+-- Sử dụng CoreGui nếu được phép, nếu không chuyển về PlayerGui để tương thích với Delta
+local success = pcall(function()
+    ScreenGui.Parent = CoreGui
+end)
+if not success then
+    ScreenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+end
+
+-- Khung chính (Main Frame)
+local MainFrame = Instance.new("Frame")
+MainFrame.Name = "MainFrame"
+MainFrame.Size = UDim2.new(0, 350, 0, 280)
+MainFrame.Position = UDim2.new(0.5, -175, 0.5, -140)
+MainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 35)
+MainFrame.BorderSizePixel = 0
+MainFrame.Active = true
+MainFrame.Draggable = true -- Cho phép kéo thả UI trên màn hình điện thoại/máy tính
+MainFrame.Parent = ScreenGui
+
+-- Bo góc UI
+local UICorner = Instance.new("UICorner")
+UICorner.CornerRadius = UDim.new(0, 8)
+UICorner.Parent = MainFrame
+
+-- Thanh tiêu đề (Top Bar)
+local TitleBar = Instance.new("TextLabel")
+TitleBar.Size = UDim2.new(1, 0, 0, 40)
+TitleBar.BackgroundColor3 = Color3.fromRGB(35, 35, 45)
+TitleBar.Text = "  Element Magic Battle | Delta UI"
+TitleBar.TextColor3 = Color3.fromRGB(255, 255, 255)
+TitleBar.TextSize = 14
+TitleBar.Font = Enum.Font.SourceSansBold
+TitleBar.TextXAlignment = Enum.TextXAlignment.Left
+TitleBar.Parent = MainFrame
+
+local TitleCorner = Instance.new("UICorner")
+TitleCorner.CornerRadius = UDim.new(0, 8)
+TitleCorner.Parent = TitleBar
+
+-- Nút thu nhỏ/đóng (Close Button)
+local CloseBtn = Instance.new("TextButton")
+CloseBtn.Size = UDim2.new(0, 40, 0, 40)
+CloseBtn.Position = UDim2.new(1, -40, 0, 0)
+CloseBtn.BackgroundTransparency = 1
+CloseBtn.Text = "X"
+CloseBtn.TextColor3 = Color3.fromRGB(255, 80, 80)
+CloseBtn.TextSize = 16
+CloseBtn.Font = Enum.Font.SourceSansBold
+CloseBtn.Parent = TitleBar
+
+CloseBtn.MouseButton1Click:Connect(function()
+    ScreenGui:Destroy()
+end)
+
+-- Hàm tạo Toggle Button trong UI
+local function CreateToggle(name, yPos, callback)
+    local ToggleBtn = Instance.new("TextButton")
+    ToggleBtn.Size = UDim2.new(0.9, 0, 0, 45)
+    ToggleBtn.Position = UDim2.new(0.05, 0, 0, yPos)
+    ToggleBtn.BackgroundColor3 = Color3.fromRGB(45, 45, 60)
+    ToggleBtn.Text = "  " .. name .. ": [ OFF ]"
+    ToggleBtn.TextColor3 = Color3.fromRGB(200, 200, 200)
+    ToggleBtn.TextSize = 14
+    ToggleBtn.Font = Enum.Font.SourceSansSemibold
+    ToggleBtn.TextXAlignment = Enum.TextXAlignment.Left
+    ToggleBtn.Parent = MainFrame
+
+    local BtnCorner = Instance.new("UICorner")
+    BtnCorner.CornerRadius = UDim.new(0, 6)
+    BtnCorner.Parent = ToggleBtn
+
+    local state = false
+    ToggleBtn.MouseButton1Click:Connect(function()
+        state = not state
+        if state then
+            ToggleBtn.Text = "  " .. name .. ": [ ON ]"
+            ToggleBtn.TextColor3 = Color3.fromRGB(0, 255, 128)
+        else
+            ToggleBtn.Text = "  " .. name .. ": [ OFF ]"
+            ToggleBtn.TextColor3 = Color3.fromRGB(200, 200, 200)
+        end
+        callback(state)
+    end)
+end
+
+-- Tạo nút bật/tắt ESP
+CreateToggle("ESP Players", 60, function(state)
+    getgenv().EMBSettings.ESPEnabled = state
+end)
+
+-- Tạo nút bật/tắt Aimbot
+CreateToggle("Aimbot (Hold Right-Click)", 120, function(state)
+    getgenv().EMBSettings.AimbotEnabled = state
+end)
+
+--------------------------------------------------------------------------------
+-- 2. HỆ THỐNG ESP (BOX & NAME)
+--------------------------------------------------------------------------------
+local espCache = {}
+
+local function createESP(player)
+    if player == LocalPlayer then return end
+    
+    local box = Drawing.new("Square")
+    box.Visible = false
+    box.Color = getgenv().EMBSettings.BoxColor
+    box.Thickness = 1.5
+    box.Filled = false
+
+    local name = Drawing.new("Text")
+    name.Visible = false
+    name.Color = getgenv().EMBSettings.NameColor
+    name.Size = 14
+    name.Center = true
+    name.Outline = true
+
+    espCache[player] = {Box = box, Name = name}
+
+    player.CharacterRemoving:Connect(function()
+        box.Visible = false
+        name.Visible = false
+    end)
+end
+
+for _, p in ipairs(Players:GetPlayers()) do createESP(p) end
+Players.PlayerAdded:Connect(createESP)
+Players.PlayerRemoving:Connect(function(p)
+    if espCache[p] then
+        espCache[p].Box:Remove()
+        espCache[p].Name:Remove()
+        espCache[p].Value = nil
+        espCache[p] = nil
+    end
+end)
+
+RunService.RenderStepped:Connect(function()
+    for player, elements in pairs(espCache) do
+        local character = player.Character
+        local rootPart = character and character:FindFirstChild("HumanoidRootPart")
+        local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+        
+        if getgenv().EMBSettings.ESPEnabled and character and rootPart and humanoid and humanoid.Health > 0 then
+            local vector, onScreen = Camera:WorldToViewportPoint(rootPart.Position)
+            
+            if onScreen then
+                local head = character:FindFirstChild("Head")
+                local topPosition = head and Camera:WorldToViewportPoint(head.Position + Vector3.new(0, 0.5, 0)) or vector
+                local bottomPosition = Camera:WorldToViewportPoint(rootPart.Position - Vector3.new(0, 3, 0))
+                
+                local boxHeight = math.abs(topPosition.Y - bottomPosition.Y)
+                local boxWidth = boxHeight / 2
+                
+                -- Cập nhật Box ESP
+                elements.Box.Size = Vector2.new(boxWidth, boxHeight)
+                elements.Box.Position = Vector2.new(vector.X - boxWidth / 2, topPosition.Y)
+                elements.Box.Visible = true
+                
+                -- Cập nhật Tên
+                elements.Name.Text = player.Name
+                elements.Name.Position = Vector2.new(vector.X, topPosition.Y - 18)
+                elements.Name.Visible = true
+            else
+                elements.Box.Visible = false
+                elements.Name.Visible = false
+            end
+        else
+            elements.Box.Visible = false
+            elements.Name.Visible = false
+        end
+    end
+end)
+
+--------------------------------------------------------------------------------
+-- 3. HỆ THỐNG AIMBOT
+--------------------------------------------------------------------------------
+local function getClosestPlayer()
+    local closestPlayer = nil
+    local shortestDistance = math.huge
+
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("Humanoid") and player.Character.Humanoid.Health > 0 then
+            local targetPart = player.Character:FindFirstChild(getgenv().EMBSettings.AimbotPart)
+            if targetPart then
+                local screenPoint, onScreen = Camera:WorldToViewportPoint(targetPart.Position)
+                if onScreen then
+                    local mousePos = Vector2.new(Mouse.X, Mouse.Y)
+                    local distance = (Vector2.new(screenPoint.X, screenPoint.Y) - mousePos).Magnitude
+                    
+                    if distance < shortestDistance then
+                        shortestDistance = distance
+                        closestPlayer = player
+                    end
+                end
+            end
+        end
+    end
+    return closestPlayer
+end
+
+RunService.RenderStepped:Connect(function()
+    if getgenv().EMBSettings.AimbotEnabled and UserInputService:IsMouseButtonPressed(getgenv().EMBSettings.AimKey) then
+        local target = getClosestPlayer()
+        if target and target.Character and target.Character:FindFirstChild(getgenv().EMBSettings.AimbotPart) then
+            local targetPart = target.Character[getgenv().EMBSettings.AimbotPart]
+            
+            -- Tính toán góc nhìn mượt mà hướng tới mục tiêu
+            local currentCFrame = Camera.CFrame
+            local targetCFrame = CFrame.new(Camera.CFrame.Position, targetPart.Position)
+            
+            Camera.CFrame = currentCFrame:Lerp(targetCFrame, 1 / getgenv().EMBSettings.AimbotProgress or getgenv().EMBSettings.Smoothness)
+        end
+    end
+end)
